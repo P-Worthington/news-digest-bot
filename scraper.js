@@ -1,40 +1,126 @@
-import axios from 'axios';
+import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 
-const getNews = async () => {
-    try {
-        const { data } = await axios.get('https://www.bbc.co.uk/news');
-        const $ = cheerio.load(data);
-        const headlines = [];
+const BASE_BBC = 'https://www.bbc.co.uk';
+const BBC_URL = `${BASE_BBC}/news/uk`;
+const SKY_URL = 'https://news.sky.com/uk';
+const BBC_WORLD_URL = `${BASE_BBC}/news/world`;
+const SKY_WORLD_URL = 'https://news.sky.com/world';
 
-        // Get main headline
-        const main = $('a.ssrcss-gvf9zo-PromoLink').first();
-        const mainTitle = main.find('p').text().trim();
-        let mainLink = main.attr('href');
-        if (mainLink && !mainLink.startsWith('http')) {
-            mainLink = `https://www.bbc.co.uk${mainLink}`;
-        }
-        if (mainTitle && mainLink) {
-            headlines.push({ title: mainTitle, link: mainLink });
-        }
+export default async function getArticles() {
+  const [bbcUK, skyUK] = await Promise.all([getBBCUKArticles(), getSkyUKArticles()]);
+  const [bbcWorld, skyWorld] = await Promise.all([getBBCWorldArticles(), getSkyWorldArticles()]);
+  const finance = await getYahooFinanceArticle();
 
-        // Get next 4 headlines
-        $('a.ssrcss-5wtq5v-PromoLink').slice(0, 1).each((i, el) => {
-            const title = $(el).find('p').text().trim();
-            let link = $(el).attr('href');
-            if (link && !link.startsWith('http')) {
-                link = `https://www.bbc.co.uk${link}`;
-            }
-            if (title && link) {
-                headlines.push({ title, link });
-            }
-        });
+  return {
+    uk: [...bbcUK, ...skyUK],
+    world: [...bbcWorld, ...skyWorld],
+    finance
+  };
+}
 
-        return headlines;
-    } catch (err) {
-        console.error('Error fetching BBC news:', err.message);
-        return [];
+// BBC UK
+async function getBBCUKArticles() {
+  const res = await fetch(BBC_URL);
+  const html = await res.text();
+  const $ = cheerio.load(html);
+  const articles = [];
+
+  $('a:has(h3)').each((i, el) => {
+    if (articles.length >= 3) return;
+    const title = $(el).text().trim();
+    const href = $(el).attr('href');
+    if (!title || !href) return;
+    const url = href.startsWith('http') ? href : `${BASE_BBC}${href}`;
+    if (url.startsWith('http')) {
+      articles.push({ title, url });
     }
-};
+  });
 
-export default getNews;
+  return articles;
+}
+
+// Sky UK
+async function getSkyUKArticles() {
+  const res = await fetch(SKY_URL);
+  const html = await res.text();
+  const $ = cheerio.load(html);
+  const articles = [];
+
+  $('a.ui-story-headline').each((i, el) => {
+    if (articles.length >= 3) return;
+    const title = $(el).text().trim();
+    const href = $(el).attr('href');
+    if (!title || !href) return;
+    const url = href.startsWith('http') ? href : `https://news.sky.com${href}`;
+    if (url.startsWith('http')) {
+      articles.push({ title, url });
+    }
+  });
+
+  return articles;
+}
+
+// BBC World
+async function getBBCWorldArticles() {
+  const res = await fetch(BBC_WORLD_URL);
+  const html = await res.text();
+  const $ = cheerio.load(html);
+  const articles = [];
+
+  $('a:has(h3)').each((i, el) => {
+    if (articles.length >= 2) return;
+    const title = $(el).text().trim();
+    const href = $(el).attr('href');
+    if (!title || !href) return;
+    const url = href.startsWith('http') ? href : `${BASE_BBC}${href}`;
+    if (url.startsWith('http')) {
+      articles.push({ title, url });
+    }
+  });
+
+  return articles;
+}
+
+// Sky World
+async function getSkyWorldArticles() {
+  const res = await fetch(SKY_WORLD_URL);
+  const html = await res.text();
+  const $ = cheerio.load(html);
+  const articles = [];
+
+  $('a.ui-story-headline').each((i, el) => {
+    if (articles.length >= 2) return;
+    const title = $(el).text().trim();
+    const href = $(el).attr('href');
+    if (!title || !href) return;
+    const url = href.startsWith('http') ? href : `https://news.sky.com${href}`;
+    if (url.startsWith('http')) {
+      articles.push({ title, url });
+    }
+  });
+
+  return articles;
+}
+
+// Yahoo Finance
+async function getYahooFinanceArticle() {
+  const YAHOO_FINANCE_URL = 'https://uk.finance.yahoo.com/';
+  const res = await fetch(YAHOO_FINANCE_URL);
+  const html = await res.text();
+  const $ = cheerio.load(html);
+  const articles = [];
+
+  $('a.titles-link').each((i, el) => {
+    const title = $(el).find('h3, h2').first().text().trim(); // safer selector
+    const href = $(el).attr('href');
+    if (!title || !href) return;
+    const url = href.startsWith('http') ? href : `https://uk.finance.yahoo.com${href}`;
+    if (url.startsWith('http')) {
+      articles.push({ title, url });
+      return false; // stop after first article
+    }
+  });
+
+  return articles;
+}

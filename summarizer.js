@@ -1,47 +1,38 @@
-import axios from 'axios';
+import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import 'dotenv/config';
-import OpenAI from 'openai';
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
+export default async function summarizeArticle(url) {
+  const html = await fetch(url).then(res => res.text());
+  const $ = cheerio.load(html);
 
-const summarizeArticle = async (url) => {
-    try {
-        const { data } = await axios.get(url);
-        const $ = cheerio.load(data);
+  // Extract paragraphs
+  const paragraphs = $('p')
+    .map((i, el) => $(el).text())
+    .get()
+    .join(' ')
+    .slice(0, 4000); // Trim to avoid token limit
 
-        const paragraphs = $('article p')
-            .map((_, el) => $(el).text())
-            .get()
-            .join(' ')
-            .trim();
+  const prompt = `Summarize the following BBC or Sky News article in 3-4 bullet points with key information only:\n\n${paragraphs}`;
 
-        if (!paragraphs) {
-            return '[No article content found to summarize]';
-        }
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'gpt-3.5-turbo',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7
+    })
+  });
 
-        const completion = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
-            messages: [
-                {
-                    role: "system",
-                    content: "Read the following news article and write a concise, fact-rich summary.Focus on the key facts, names, numbers, quotes, and developments mentioned in the article. Avoid general statements and ensure the reader understands the main story clearly. Summarize in less than 1000 characters"
-                },
-                {
-                    role: "user",
-                    content: paragraphs
-                }
-            ],
-            temperature: 0.7
-        });
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`Error summarizing text: ${error}`);
+  }
 
-        return completion.choices[0].message.content.trim();
-    } catch (err) {
-        console.error('Error summarizing text:', err.message);
-        return '[Summary unavailable]';
-    }
-};
-
-export default summarizeArticle;
+  const data = await res.json();
+  return data.choices[0].message.content.trim();
+}

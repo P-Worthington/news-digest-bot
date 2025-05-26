@@ -1,28 +1,24 @@
-// index.js
-import getNews from './scraper.js';
+import getArticles from './scraper.js';
 import summarizeArticle from './summarizer.js';
 
-const delay = ms => new Promise(res => setTimeout(res, ms));
+const allArticles = await getArticles();
 
-const run = async () => {
-  const headlines = await getNews();
+for (const [category, articles] of Object.entries(allArticles)) {
+  console.log(`\n🔹 ${category.toUpperCase()} NEWS:\n`);
 
-  console.log("📬 BBC News Digest:\n");
+  for (const article of articles) {
+    if (!article.url || !article.url.startsWith('http')) {
+      console.warn('⚠️ Skipping invalid URL:', article.url);
+      continue;
+    }
 
-  for (const { title, link } of headlines) {
-    console.log(`📰 ${title}`);
-    console.log(`🔗 ${link}`);
-
-    const summary = await summarizeArticle(link).catch((err) => {
-      console.error('Error summarizing text:', err.message);
-      return '[Summary unavailable]';
-    });
-
-    console.log(`📝 Summary: ${summary}\n`);
-
-    // Add a delay to prevent hitting rate limits
-    await delay(2000); // Wait 2 seconds
+    try {
+      console.log(`🗞️ ${article.title}`);
+      console.log(`🔗 ${article.url}`);
+      const summary = await summarizeArticle(article.url);
+      console.log(`📝 ${summary}\n`);
+    } catch (err) {
+      console.error(`❌ Failed to summarize: ${article.url}\n  Error: ${err.message}\n`);
+    }
   }
-};
-
-run();
+}
