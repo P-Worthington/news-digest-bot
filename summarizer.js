@@ -13,7 +13,7 @@ export default async function summarizeArticle(url) {
     .join(' ')
     .slice(0, 4000); // Trim to avoid token limit
 
-  const prompt = `Summarize the following BBC or Sky News article in 3-4 bullet points with key information only:\n\n${paragraphs}`;
+  const prompt = `Summarize the following BBC or Sky News article in less than 500 characters and in 3-4 bullet points with key information only:\n\n${paragraphs}`;
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',

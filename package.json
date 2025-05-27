@@ -11,6 +11,8 @@
     "cheerio": "^1.0.0-rc.12",
     "dotenv": "^16.5.0",
     "news-digest-bot": "file:",
+    "node-fetch": "^3.3.2",
+    "nodemailer": "^7.0.3",
     "openai": "^4.20.0"
   }
 }
