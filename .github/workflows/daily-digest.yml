@@ -23,9 +23,9 @@ jobs:
 
       - name: Run News Digest Bot
         run: node index.js
-
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_FROM: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
