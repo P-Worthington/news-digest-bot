@@ -7,9 +7,11 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "@extractus/article-extractor": "^8.0.19",
     "axios": "^1.6.8",
     "cheerio": "^1.0.0-rc.12",
     "dotenv": "^16.5.0",
+    "jsdom": "^26.1.0",
     "news-digest-bot": "file:",
     "node-fetch": "^3.3.2",
     "nodemailer": "^7.0.3",

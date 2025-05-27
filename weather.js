@@ -1,51 +1,43 @@
 import fetch from 'node-fetch';
+import dotenv from 'dotenv';
 
-const locations = [
-  { name: 'Congleton', lat: 53.1638, lon: -2.2140 },
-  { name: 'Manchester', lat: 53.4808, lon: -2.2426 }
-];
+dotenv.config();
 
-function formatHour(hourStr) {
-  const hour = new Date(hourStr).getHours();
-  return `${hour}:00`;
-}
+const LOCATIONS = ['Congleton', 'Manchester'];
 
 export async function getWeatherForDigest() {
+  const apiKey = process.env.OPENWEATHER_API_KEY;
   const results = [];
 
-  for (const { name, lat, lon } of locations) {
-    const res = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation_probability,weathercode&timezone=Europe%2FLondon`
-    );
+  for (const location of LOCATIONS) {
+    const url = `https://api.openweathermap.org/data/2.5/forecast?q=${location}&units=metric&appid=${apiKey}`;
+    const res = await fetch(url);
+    const json = await res.json();
 
-    if (!res.ok) {
-      results.push(`❌ Could not fetch weather for ${name}`);
-      continue;
-    }
-
-    const data = await res.json();
     const now = new Date();
-    const next24 = [];
+    const start = new Date(now);
+    start.setHours(9, 0, 0, 0); // today at 09:00
 
-    for (let i = 0; i < data.hourly.time.length; i++) {
-      const timestamp = new Date(data.hourly.time[i]);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 1); // tomorrow at 09:00
 
-      if (timestamp > now && timestamp - now <= 24 * 60 * 60 * 1000) {
-        next24.push({
-          time: formatHour(data.hourly.time[i]),
-          temp: data.hourly.temperature_2m[i],
-          rain: data.hourly.precipitation_probability[i]
-        });
-      }
-    }
+    const filtered = json.list.filter(entry => {
+      const time = new Date(entry.dt * 1000);
+      return time >= start && time <= end;
+    });
 
-    const reportLines = next24.map(f =>
-      `${f.time}: ${f.temp}°C, 🌧️ ${f.rain}% chance of rain`
-    );
+    const hourly = filtered.map(entry => {
+      const time = new Date(entry.dt * 1000).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const temp = entry.main.temp.toFixed(1);
+      const rainChance = entry.pop ? Math.round(entry.pop * 100) : 0;
+      const emoji = rainChance > 50 ? '🌧️' : '🌤️';
+      return `${time}: ${temp}°C, ${emoji} ${rainChance}% chance of rain`;
+    });
 
-    results.push(
-      `📍 ${name} 24-hour forecast:\n${reportLines.slice(0, 6).join('\n')}` // Limit to next 6 hours for brevity
-    );
+    results.push(`<strong>${location} Forecast:</strong><br>${hourly.join('<br>')}`);
   }
 
   return results;

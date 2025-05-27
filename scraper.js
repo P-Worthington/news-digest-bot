@@ -3,13 +3,14 @@ import * as cheerio from 'cheerio';
 
 const BASE_BBC = 'https://www.bbc.co.uk';
 const BBC_URL = `${BASE_BBC}/news/uk`;
-const SKY_URL = 'https://news.sky.com/uk';
 const BBC_WORLD_URL = `${BASE_BBC}/news/world`;
+const SKY_URL = 'https://news.sky.com/uk';
 const SKY_WORLD_URL = 'https://news.sky.com/world';
+const YAHOO_FINANCE_URL = 'https://uk.finance.yahoo.com/';
 
 export default async function getArticles() {
-  const [bbcUK, skyUK] = await Promise.all([getBBCUKArticles(), getSkyUKArticles()]);
-  const [bbcWorld, skyWorld] = await Promise.all([getBBCWorldArticles(), getSkyWorldArticles()]);
+  const [bbcUK, skyUK] = await Promise.all([getBBCArticles(BBC_URL), getSkyArticles(SKY_URL)]);
+  const [bbcWorld, skyWorld] = await Promise.all([getBBCArticles(BBC_WORLD_URL), getSkyArticles(SKY_WORLD_URL)]);
   const finance = await getYahooFinanceArticle();
 
   return {
@@ -19,108 +20,76 @@ export default async function getArticles() {
   };
 }
 
-// BBC UK
-async function getBBCUKArticles() {
-  const res = await fetch(BBC_URL);
-  const html = await res.text();
-  const $ = cheerio.load(html);
-  const articles = [];
+// Generic BBC Article Fetcher
+async function getBBCArticles(url) {
+  try {
+    const res = await fetch(url);
+    const html = await res.text();
+    const $ = cheerio.load(html);
+    const articles = [];
 
-  $('a:has(h3)').each((i, el) => {
-    if (articles.length >= 3) return;
-    const title = $(el).text().trim();
-    const href = $(el).attr('href');
-    if (!title || !href) return;
-    const url = href.startsWith('http') ? href : `${BASE_BBC}${href}`;
-    if (url.startsWith('http')) {
-      articles.push({ title, url });
-    }
-  });
+    // Select headline and subsidiary articles
+    $('a.ssrcss-gvf9zo-PromoLink, a.ssrcss-5wtq5v-PromoLink').each((i, el) => {
+      if (articles.length >= 3) return;
+      const title = $(el).text().trim();
+      const href = $(el).attr('href');
+      if (!title || !href) return;
+      const fullUrl = href.startsWith('http') ? href : `${BASE_BBC}${href}`;
+      articles.push({ title, url: fullUrl });
+    });
 
-  return articles;
+    return articles;
+  } catch (error) {
+    console.error(`Error fetching BBC articles from ${url}:`, error);
+    return [];
+  }
 }
 
-// Sky UK
-async function getSkyUKArticles() {
-  const res = await fetch(SKY_URL);
-  const html = await res.text();
-  const $ = cheerio.load(html);
-  const articles = [];
+// Generic Sky News Article Fetcher
+async function getSkyArticles(url) {
+  try {
+    const res = await fetch(url);
+    const html = await res.text();
+    const $ = cheerio.load(html);
+    const articles = [];
 
-  $('a.ui-story-headline').each((i, el) => {
-    if (articles.length >= 3) return;
-    const title = $(el).text().trim();
-    const href = $(el).attr('href');
-    if (!title || !href) return;
-    const url = href.startsWith('http') ? href : `https://news.sky.com${href}`;
-    if (url.startsWith('http')) {
-      articles.push({ title, url });
-    }
-  });
+    // Select top stories
+    $('a.sdc-site-tile__headline-link').each((i, el) => {
+      if (articles.length >= 3) return;
+      const title = $(el).text().trim();
+      const href = $(el).attr('href');
+      if (!title || !href) return;
+      const fullUrl = href.startsWith('http') ? href : `https://news.sky.com${href}`;
+      articles.push({ title, url: fullUrl });
+    });
 
-  return articles;
+    return articles;
+  } catch (error) {
+    console.error(`Error fetching Sky News articles from ${url}:`, error);
+    return [];
+  }
 }
 
-// BBC World
-async function getBBCWorldArticles() {
-  const res = await fetch(BBC_WORLD_URL);
-  const html = await res.text();
-  const $ = cheerio.load(html);
-  const articles = [];
-
-  $('a:has(h3)').each((i, el) => {
-    if (articles.length >= 2) return;
-    const title = $(el).text().trim();
-    const href = $(el).attr('href');
-    if (!title || !href) return;
-    const url = href.startsWith('http') ? href : `${BASE_BBC}${href}`;
-    if (url.startsWith('http')) {
-      articles.push({ title, url });
-    }
-  });
-
-  return articles;
-}
-
-// Sky World
-async function getSkyWorldArticles() {
-  const res = await fetch(SKY_WORLD_URL);
-  const html = await res.text();
-  const $ = cheerio.load(html);
-  const articles = [];
-
-  $('a.ui-story-headline').each((i, el) => {
-    if (articles.length >= 2) return;
-    const title = $(el).text().trim();
-    const href = $(el).attr('href');
-    if (!title || !href) return;
-    const url = href.startsWith('http') ? href : `https://news.sky.com${href}`;
-    if (url.startsWith('http')) {
-      articles.push({ title, url });
-    }
-  });
-
-  return articles;
-}
-
-// Yahoo Finance
+// Yahoo Finance Article Fetcher
 async function getYahooFinanceArticle() {
-  const YAHOO_FINANCE_URL = 'https://uk.finance.yahoo.com/';
-  const res = await fetch(YAHOO_FINANCE_URL);
-  const html = await res.text();
-  const $ = cheerio.load(html);
-  const articles = [];
+  try {
+    const res = await fetch(YAHOO_FINANCE_URL);
+    const html = await res.text();
+    const $ = cheerio.load(html);
+    const articles = [];
 
-  $('a.titles-link').each((i, el) => {
-    const title = $(el).find('h3, h2').first().text().trim(); // safer selector
-    const href = $(el).attr('href');
-    if (!title || !href) return;
-    const url = href.startsWith('http') ? href : `https://uk.finance.yahoo.com${href}`;
-    if (url.startsWith('http')) {
-      articles.push({ title, url });
-      return false; // stop after first article
-    }
-  });
+    $('a.titles-link').each((i, el) => {
+      const title = $(el).find('h3, h2').first().text().trim();
+      const href = $(el).attr('href');
+      if (!title || !href) return;
+      const fullUrl = href.startsWith('http') ? href : `https://uk.finance.yahoo.com${href}`;
+      articles.push({ title, url: fullUrl });
+      return false; // Stop after first article
+    });
 
-  return articles;
+    return articles;
+  } catch (error) {
+    console.error('Error fetching Yahoo Finance article:', error);
+    return [];
+  }
 }

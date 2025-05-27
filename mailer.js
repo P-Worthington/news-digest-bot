@@ -1,27 +1,29 @@
 // mailer.js
 import nodemailer from 'nodemailer';
-import 'dotenv/config';
+import dotenv from 'dotenv';
 
-export async function sendDigestEmail(subject, content) {
+dotenv.config();
+
+export async function sendDigestEmail(subject, htmlContent) {
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: process.env.EMAIL_FROM,
-      pass: process.env.EMAIL_PASS
-    }
+      pass: process.env.EMAIL_PASS,
+    },
   });
 
   const mailOptions = {
     from: process.env.EMAIL_FROM,
-    to: process.env.EMAIL_TO, // comma-separated list for multiple addresses
+    to: process.env.EMAIL_TO, // comma-separated list or array
     subject,
-    text: content
+    html: htmlContent,
   };
 
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`📧 Email sent: ${info.response}`);
+    await transporter.sendMail(mailOptions);
+    console.log('✅ Digest email sent');
   } catch (err) {
-    console.error(`❌ Failed to send email: ${err.message}`);
+    console.error('❌ Failed to send digest email:', err);
   }
 }

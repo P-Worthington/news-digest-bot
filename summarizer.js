@@ -1,38 +1,44 @@
 import fetch from 'node-fetch';
-import * as cheerio from 'cheerio';
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import extractMainContent from './extractor.js';
+
+dotenv.config();
 
 export default async function summarizeArticle(url) {
-  const html = await fetch(url).then(res => res.text());
-  const $ = cheerio.load(html);
+  try {
+    const html = await (await fetch(url)).text();
+    const fullText = await extractMainContent(html);
 
-  // Extract paragraphs
-  const paragraphs = $('p')
-    .map((i, el) => $(el).text())
-    .get()
-    .join(' ')
-    .slice(0, 4000); // Trim to avoid token limit
+    if (!fullText) throw new Error('No content extracted');
 
-  const prompt = `Summarize the following BBC or Sky News article in less than 500 characters and in 3-4 bullet points with key information only:\n\n${paragraphs}`;
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4',
+        messages: [
+          {
+            role: 'user',
+            content: `Summarise the following news article in 1–2 very short sentences (max 35 words total). Focus only on the most important facts. Avoid filler, background, or commentary.
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'gpt-3.5-turbo',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7
-    })
-  });
+Article:
+${fullText}`,
+          },
+        ],
+        temperature: 0.3, // Lower temperature for more focused results
+      }),
+    });
 
-  if (!res.ok) {
-    const error = await res.text();
-    throw new Error(`Error summarizing text: ${error}`);
+    const json = await res.json();
+    const message = json.choices?.[0]?.message?.content;
+    if (!message) throw new Error('No summary returned');
+
+    return message.replace(/^- /gm, '•').trim();
+  } catch (err) {
+    console.error(`❌ Failed to summarize: ${url}\n  Error: ${err.message}`);
+    throw err;
   }
-
-  const data = await res.json();
-  return data.choices[0].message.content.trim();
 }
